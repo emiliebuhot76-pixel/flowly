@@ -1431,6 +1431,19 @@ body::before {
   }
 }
 
+
+
+/* ── DELETE BUTTON POLISH ── */
+.txn-del {
+  margin-left: 8px;
+}
+
+@media (hover: none), (max-width: 768px) {
+  .txn-del {
+    opacity: 1;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -2880,7 +2893,7 @@ function renderDashboard() {
   // Recent txns
   const recent = [...state.transactions].reverse().slice(0,5);
   document.getElementById('dashTxns').innerHTML = recent.length
-    ? recent.map(t => txnHTML(t, false)).join('')
+    ? recent.map(t => txnHTML(t, true)).join('')
     : `<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">Aucun mouvement.<br>Commence par ajouter un revenu ou une dépense !</div></div>`;
 }
 
