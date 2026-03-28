@@ -2359,24 +2359,11 @@ async function init() {
   if (fromUrl) {
     const restored = await loadFromCloud(fromUrl, { silent: true });
     if (restored) {
-      state.prenom = state.prenom || getLastProfile()?.name || fromUrl || '';
+      state.prenom = state.prenom || fromUrl || '';
       setLastProfile(state.prenom);
       saveLocalState();
     }
-  }
-
-  if (!state.prenom) {
-    const lastProfile = getLastProfile();
-    if (lastProfile?.name) {
-      const restored = await loadFromCloud(lastProfile.name, { silent: true });
-      if (restored) {
-        state.prenom = state.prenom || lastProfile.name;
-        saveLocalState();
-      }
-    }
-  }
-
-  if (!state.prenom) {
+  } else {
     const ok = load();
     if (ok && state.prenom) {
       saveLocalState();
@@ -2386,14 +2373,15 @@ async function init() {
   document.getElementById('setupScreen').style.display = 'flex';
   document.getElementById('mainApp').style.display = 'none';
   const nameField = document.getElementById('setupName');
-  if (nameField) nameField.value = state.prenom || getLastProfile()?.name || '';
+  if (nameField) nameField.value = '';
 }
 
 async function startApp() {
   const n = document.getElementById('setupName').value.trim();
   if (!n) { toast('⚠️', 'Rentre ton prénom pour continuer !'); return; }
 
-  if (state.prenom && state.prenom.toLowerCase() === n.toLowerCase()) {
+  const localOk = load();
+  if (localOk && state.prenom && state.prenom.toLowerCase() === n.toLowerCase()) {
     setLastProfile(state.prenom);
     saveLocalState();
     document.getElementById('setupScreen').style.display = 'none';
