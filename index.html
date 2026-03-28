@@ -1294,6 +1294,38 @@ body::before {
   }
 }
 
+
+
+/* ── MOBILE OBJECTIFS FIX ── */
+@media (max-width: 768px) {
+  .panel-inner {
+    padding: 14px;
+  }
+
+  .project-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .project-card {
+    padding: 18px;
+  }
+
+  .project-actions {
+    opacity: 1 !important;
+    margin-top: 12px;
+  }
+
+  .project-actions .btn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .project-add {
+    min-height: 120px;
+  }
+}
+
 </style>
 </head>
 <body>
