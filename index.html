@@ -1445,20 +1445,19 @@ body::before {
 }
 
 
-/* ── SWIPE / UNDO / ADD FX ── */
+/* ── MICRO FX: swipe / undo / ajout ── */
 .txn-item {
   touch-action: pan-y;
-  overflow: hidden;
-}
-.txn-item.swiping {
-  transition: none;
 }
 .txn-item.swipe-ready {
   transition: transform .18s ease, opacity .18s ease;
 }
+.txn-item.swipe-hint::after {
+  opacity: 1;
+}
 .txn-item.removing {
   opacity: 0;
-  transform: translateX(24px) scale(0.985);
+  transform: translateX(22px) scale(0.985);
 }
 .txn-item::after {
   content: 'Supprimer';
@@ -1466,27 +1465,24 @@ body::before {
   top: 0;
   right: 0;
   bottom: 0;
-  width: 116px;
+  width: 108px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(255,77,106,0.18), rgba(255,77,106,0.28));
+  background: linear-gradient(135deg, rgba(255,77,106,0.16), rgba(255,77,106,0.26));
   color: var(--red);
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: .02em;
   opacity: 0;
   pointer-events: none;
   transition: opacity .18s ease;
-}
-.txn-item.swipe-hint::after {
-  opacity: 1;
+  border-radius: 0 14px 14px 0;
 }
 .undo-toast {
   position: fixed;
   left: 50%;
   bottom: 28px;
-  transform: translateX(-50%) translateY(12px);
+  transform: translateX(-50%) translateY(10px);
   background: var(--card);
   border: 1px solid var(--border2);
   border-radius: 16px;
@@ -1536,7 +1532,7 @@ body::before {
     left: 12px;
     right: 12px;
     bottom: 16px;
-    transform: translateY(12px);
+    transform: translateY(10px);
   }
   .undo-toast.show {
     transform: translateY(0);
@@ -2217,6 +2213,7 @@ let state = { prenom: '', solde: 0, transactions: [], projets: [], leconsOk: [],
 let lastDeletedTxn = null;
 let lastDeletedTimer = null;
 let lastAddedTxnId = null;
+
 let currentLeconId = null;
 let quizDone = false;
 let appReady = false;
@@ -3126,7 +3123,7 @@ async function saveRevenu() {
   const t = normalizeTransaction({ id: Date.now().toString(), type: 'revenu', source, montant, date, note, createdAt: new Date().toISOString() });
   state.transactions.push(t);
   lastAddedTxnId = t.id;
-state.solde += montant;
+  state.solde += montant;
   state.xp += 5;
   await saveAndSync();
   closeModal('modalRevenu');
@@ -3149,7 +3146,7 @@ async function saveDepense() {
   const t = normalizeTransaction({ id: Date.now().toString(), type: 'depense', nom, categorie, montant, date: date || new Date().toISOString().slice(0, 10), regrets, createdAt: new Date().toISOString() });
   state.transactions.push(t);
   lastAddedTxnId = t.id;
-state.solde -= montant;
+  state.solde -= montant;
   state.xp += 3;
   await saveAndSync();
   closeModal('modalDepense');
@@ -3180,7 +3177,7 @@ async function saveProjet() {
   renderAll();
 }
 
-async 
+
 function animateLatestTransaction() {
   if (!lastAddedTxnId) return;
   requestAnimationFrame(() => {
@@ -3223,8 +3220,7 @@ async function undoLastDelete() {
   hideUndoToast();
 
   state.transactions.push(txn);
-  lastAddedTxnId = txn.id;
-state.transactions.sort((a,b) => new Date(a.date) - new Date(b.date));
+  state.transactions.sort((a,b) => new Date(a.date) - new Date(b.date));
   state.solde += txn.type === 'revenu' ? txn.montant : -txn.montant;
   lastAddedTxnId = txn.id;
 
@@ -3264,7 +3260,7 @@ function bindTxnSwipe(containerId) {
       moved = true;
 
       if (dx < 0) {
-        const limited = Math.max(dx, -116);
+        const limited = Math.max(dx, -108);
         item.style.transform = `translateX(${limited}px)`;
         item.classList.add('swipe-hint');
       } else {
@@ -3279,7 +3275,7 @@ function bindTxnSwipe(containerId) {
       const dx = currentX - startX;
       const btn = item.querySelector('.txn-del');
 
-      if (moved && dx <= -72 && btn) {
+      if (moved && dx <= -70 && btn) {
         item.classList.add('removing');
         setTimeout(() => btn.click(), 140);
       } else {
@@ -3300,7 +3296,8 @@ async function delTxn(id, e) {
   state.transactions = state.transactions.filter(t=>t.id!==id);
   state.solde += t.type==='revenu' ? -t.montant : t.montant;
   queueUndoTransaction(t);
-  await saveAndSync(); renderAll();
+  await saveAndSync();
+  renderAll();
   toast('🗑️', 'Opération supprimée');
 }
 
