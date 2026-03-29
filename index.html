@@ -1444,6 +1444,105 @@ body::before {
   }
 }
 
+
+/* ── SWIPE / UNDO / ADD FX ── */
+.txn-item {
+  touch-action: pan-y;
+  overflow: hidden;
+}
+.txn-item.swiping {
+  transition: none;
+}
+.txn-item.swipe-ready {
+  transition: transform .18s ease, opacity .18s ease;
+}
+.txn-item.removing {
+  opacity: 0;
+  transform: translateX(24px) scale(0.985);
+}
+.txn-item::after {
+  content: 'Supprimer';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 116px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(255,77,106,0.18), rgba(255,77,106,0.28));
+  color: var(--red);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s ease;
+}
+.txn-item.swipe-hint::after {
+  opacity: 1;
+}
+.undo-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%) translateY(12px);
+  background: var(--card);
+  border: 1px solid var(--border2);
+  border-radius: 16px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 1200;
+  opacity: 0;
+  pointer-events: none;
+  transition: all .22s ease;
+  box-shadow: 0 12px 28px rgba(0,0,0,0.28);
+}
+.undo-toast.show {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+.undo-toast-text {
+  font-size: 13px;
+  color: var(--text2);
+  font-weight: 600;
+}
+.undo-btn {
+  border: 1px solid rgba(124,58,255,0.35);
+  background: var(--neon-glow);
+  color: var(--neon2);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.txn-item.txn-added {
+  animation: txnPopIn .42s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes txnPopIn {
+  0% { opacity: 0; transform: translateY(10px) scale(.985); }
+  60% { opacity: 1; transform: translateY(-2px) scale(1.008); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (hover: none), (max-width: 768px) {
+  .txn-del {
+    opacity: 1;
+  }
+  .undo-toast {
+    left: 12px;
+    right: 12px;
+    bottom: 16px;
+    transform: translateY(12px);
+  }
+  .undo-toast.show {
+    transform: translateY(0);
+  }
+}
+
 </style>
 </head>
 <body>
@@ -2115,6 +2214,9 @@ const PROJ_COLORS = { neon: 'c-neon', cyan: 'c-cyan', green: 'c-green', yellow: 
 const PROJ_FILLS = { neon: 'linear-gradient(90deg,var(--neon),var(--cyan))', cyan: 'var(--cyan)', green: 'var(--green)', yellow: 'var(--yellow)', red: 'var(--red)', orange: 'var(--orange)' };
 
 let state = { prenom: '', solde: 0, transactions: [], projets: [], leconsOk: [], badgesOk: [], xp: 0 };
+let lastDeletedTxn = null;
+let lastDeletedTimer = null;
+let lastAddedTxnId = null;
 let currentLeconId = null;
 let quizDone = false;
 let appReady = false;
@@ -2754,6 +2856,9 @@ function renderAll() {
   renderLessons();
   renderXP();
   checkBadges();
+  bindTxnSwipe('dashTxns');
+  bindTxnSwipe('allTxns');
+  animateLatestTransaction();
 }
 
 function renderHeader() {
@@ -2906,7 +3011,7 @@ function txnHTML(t, del=true) {
   const color = plus ? 'var(--green)' : 'var(--red)';
   const desc = t.note || t.nom || cat || '—';
   const delBtn = del ? `<button class="txn-del" onclick="delTxn('${t.id}',event)">✕</button>` : '';
-  return `<div class="txn-item">
+  return `<div class="txn-item" data-txn-id="${t.id}">
     <div class="txn-emoji-wrap" style="background:${bg};">${emoji}</div>
     <div class="txn-info">
       <div class="txn-name">${desc}</div>
@@ -3020,7 +3125,8 @@ async function saveRevenu() {
   if (!date) { toast('⚠️', 'Choisis une date !'); return; }
   const t = normalizeTransaction({ id: Date.now().toString(), type: 'revenu', source, montant, date, note, createdAt: new Date().toISOString() });
   state.transactions.push(t);
-  state.solde += montant;
+  lastAddedTxnId = t.id;
+state.solde += montant;
   state.xp += 5;
   await saveAndSync();
   closeModal('modalRevenu');
@@ -3042,7 +3148,8 @@ async function saveDepense() {
   if (montant > state.solde) { toast('⚠️', 'Pas assez d\'argent dans ta tirelire !'); return; }
   const t = normalizeTransaction({ id: Date.now().toString(), type: 'depense', nom, categorie, montant, date: date || new Date().toISOString().slice(0, 10), regrets, createdAt: new Date().toISOString() });
   state.transactions.push(t);
-  state.solde -= montant;
+  lastAddedTxnId = t.id;
+state.solde -= montant;
   state.xp += 3;
   await saveAndSync();
   closeModal('modalDepense');
@@ -3073,12 +3180,126 @@ async function saveProjet() {
   renderAll();
 }
 
+async 
+function animateLatestTransaction() {
+  if (!lastAddedTxnId) return;
+  requestAnimationFrame(() => {
+    const el = document.querySelector(`.txn-item[data-txn-id="${lastAddedTxnId}"]`);
+    if (!el) return;
+    el.classList.add('txn-added');
+    setTimeout(() => el.classList.remove('txn-added'), 500);
+    lastAddedTxnId = null;
+  });
+}
+
+function showUndoToast(message) {
+  const toastEl = document.getElementById('undoToast');
+  const textEl = document.getElementById('undoToastText');
+  if (!toastEl || !textEl) return;
+  textEl.textContent = message || 'Opération supprimée';
+  toastEl.classList.add('show');
+}
+
+function hideUndoToast() {
+  const toastEl = document.getElementById('undoToast');
+  if (toastEl) toastEl.classList.remove('show');
+}
+
+function queueUndoTransaction(txn) {
+  if (lastDeletedTimer) clearTimeout(lastDeletedTimer);
+  lastDeletedTxn = JSON.parse(JSON.stringify(txn));
+  showUndoToast('Opération supprimée');
+  lastDeletedTimer = setTimeout(() => {
+    lastDeletedTxn = null;
+    hideUndoToast();
+  }, 3500);
+}
+
+async function undoLastDelete() {
+  if (!lastDeletedTxn) return;
+  if (lastDeletedTimer) clearTimeout(lastDeletedTimer);
+  const txn = lastDeletedTxn;
+  lastDeletedTxn = null;
+  hideUndoToast();
+
+  state.transactions.push(txn);
+  lastAddedTxnId = txn.id;
+state.transactions.sort((a,b) => new Date(a.date) - new Date(b.date));
+  state.solde += txn.type === 'revenu' ? txn.montant : -txn.montant;
+  lastAddedTxnId = txn.id;
+
+  await saveAndSync();
+  renderAll();
+  animateLatestTransaction();
+  toast('↩️', 'Suppression annulée');
+}
+
+function bindTxnSwipe(containerId) {
+  const wrap = document.getElementById(containerId);
+  if (!wrap) return;
+
+  wrap.querySelectorAll('.txn-item').forEach(item => {
+    if (item.dataset.swipeBound === '1') return;
+    item.dataset.swipeBound = '1';
+
+    let startX = 0;
+    let currentX = 0;
+    let dragging = false;
+    let moved = false;
+
+    item.addEventListener('touchstart', e => {
+      if (!e.touches || !e.touches[0]) return;
+      startX = e.touches[0].clientX;
+      currentX = startX;
+      dragging = true;
+      moved = false;
+      item.classList.add('swipe-ready');
+    }, { passive: true });
+
+    item.addEventListener('touchmove', e => {
+      if (!dragging || !e.touches || !e.touches[0]) return;
+      currentX = e.touches[0].clientX;
+      const dx = currentX - startX;
+      if (Math.abs(dx) < 8) return;
+      moved = true;
+
+      if (dx < 0) {
+        const limited = Math.max(dx, -116);
+        item.style.transform = `translateX(${limited}px)`;
+        item.classList.add('swipe-hint');
+      } else {
+        item.style.transform = '';
+        item.classList.remove('swipe-hint');
+      }
+    }, { passive: true });
+
+    const endSwipe = () => {
+      if (!dragging) return;
+      dragging = false;
+      const dx = currentX - startX;
+      const btn = item.querySelector('.txn-del');
+
+      if (moved && dx <= -72 && btn) {
+        item.classList.add('removing');
+        setTimeout(() => btn.click(), 140);
+      } else {
+        item.style.transform = '';
+        item.classList.remove('swipe-hint');
+      }
+    };
+
+    item.addEventListener('touchend', endSwipe, { passive: true });
+    item.addEventListener('touchcancel', endSwipe, { passive: true });
+  });
+}
+
 async function delTxn(id, e) {
-  e.stopPropagation();
+  if (e) e.stopPropagation();
   const t = state.transactions.find(t=>t.id===id);
   if (!t || !confirm(`Supprimer cette opération de ${fmt(t.montant)} ?`)) return;
   state.transactions = state.transactions.filter(t=>t.id!==id);
   state.solde += t.type==='revenu' ? -t.montant : t.montant;
+  queueUndoTransaction(t);
   await saveAndSync(); renderAll();
   toast('🗑️', 'Opération supprimée');
 }
@@ -3330,5 +3551,11 @@ document.addEventListener('keydown', e => {
 
 init();
 </script>
+
+<div class="undo-toast" id="undoToast">
+  <div class="undo-toast-text" id="undoToastText">Opération supprimée</div>
+  <button class="undo-btn" onclick="undoLastDelete()">Annuler</button>
+</div>
+
 </body>
 </html>
