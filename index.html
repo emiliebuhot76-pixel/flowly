@@ -1337,6 +1337,10 @@ body::before {
 .txn-item.swipe-hint::after {
   opacity: 1;
 }
+
+.txn-item.swipe-hint .txn-del {
+  opacity: 1 !important;
+}
 .txn-item::after {
   content: 'Supprimer';
   position: absolute;
@@ -3113,6 +3117,13 @@ function bindTxnSwipe(containerId) {
     let currentX = 0;
     let dragging = false;
     let moved = false;
+    const delBtn = item.querySelector('.txn-del');
+
+    if (delBtn) {
+      delBtn.addEventListener('click', e => {
+        e.stopPropagation();
+      });
+    }
 
     item.addEventListener('touchstart', e => {
       if (!e.touches || !e.touches[0]) return;
@@ -3161,6 +3172,7 @@ function bindTxnSwipe(containerId) {
     item.addEventListener('click', e => {
       const clickedDelete = e.target.closest('.txn-del');
       if (clickedDelete) return;
+
       if (item.classList.contains('swipe-hint')) {
         item.style.transform = '';
         item.classList.remove('swipe-hint');
